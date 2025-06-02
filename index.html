@@ -745,10 +745,30 @@
                 console.log('处理新数据更新:', newLine);
 
                 // 检测是否是完全不同的内容（可能是重置或新开始）
-                if (lastLine && newLine.length < lastLine.length * 0.5 &&
-                    !lastLine.toLowerCase().includes(newLine.toLowerCase().substring(0, Math.min(20, newLine.length)))) {
+                const lengthCondition = lastLine && newLine.length < lastLine.length * 0.5;
+                const contentCondition = lastLine && !lastLine.toLowerCase().includes(newLine.toLowerCase().substring(0, Math.min(20, newLine.length)));
+
+                console.log('🔍 内容重置检测:', {
+                    lastLineLength: lastLine ? lastLine.length : 0,
+                    newLineLength: newLine.length,
+                    lengthThreshold: lastLine ? lastLine.length * 0.5 : 0,
+                    lengthCondition: lengthCondition,
+                    contentCondition: contentCondition,
+                    checkString: newLine.toLowerCase().substring(0, Math.min(20, newLine.length))
+                });
+
+                if (lengthCondition && contentCondition) {
                     console.log('检测到内容重置，从:', lastLine, '到:', newLine);
-                    // 这可能是内容重置，保持当前状态，只更新未完成部分
+
+                    // 在重置之前，先保存当前未完成的句子（如果有的话）
+                    if (currentIncomplete.trim() && !isAlreadyCompleted(currentIncomplete)) {
+                        console.log('🔄 内容重置前保存未完成句子:', currentIncomplete);
+                        completedSentences.push(currentIncomplete);
+                        updateWordCount(currentIncomplete);
+                        console.log('  ✅ 句子已保存到历史记录');
+                    }
+
+                    // 然后设置新的未完成句子
                     currentIncomplete = newLine;
                 } else {
                     // 正常处理新的line数据
@@ -805,8 +825,29 @@
                 currentIncomplete = tempSentence.trim();
 
             } else {
-                // 没有句子结束标点，检查是否是句子突然切换
-                if (currentIncomplete.trim() && !isSentenceContinuation(currentIncomplete, line)) {
+                // 没有句子结束标点，先检查是否是内容重置（优先级更高）
+                const isContentReset = currentIncomplete.trim() &&
+                                     line.length < currentIncomplete.length * 0.5 &&
+                                     !currentIncomplete.toLowerCase().includes(line.toLowerCase().substring(0, Math.min(20, line.length)));
+
+                if (isContentReset) {
+                    console.log('🔄 在processNewLine中检测到内容重置:');
+                    console.log('  之前句子:', currentIncomplete);
+                    console.log('  新句子:', line);
+                    console.log('  自动保存之前的句子');
+
+                    // 保存之前的未完成句子
+                    if (!isAlreadyCompleted(currentIncomplete)) {
+                        completedSentences.push(currentIncomplete);
+                        updateWordCount(currentIncomplete);
+                        console.log('  ✅ 句子已保存到历史记录');
+                    } else {
+                        console.log('  ⚠️ 句子已存在，跳过保存');
+                    }
+
+                    // 设置新的未完成句子
+                    currentIncomplete = line;
+                } else if (currentIncomplete.trim() && !isSentenceContinuation(currentIncomplete, line)) {
                     // 检测到句子突然切换，保存之前的未完成句子
                     console.log('🔄 检测到句子突然切换:');
                     console.log('  之前句子:', currentIncomplete);
@@ -822,12 +863,17 @@
                     } else {
                         console.log('  ⚠️ 句子已存在，跳过保存');
                     }
+
+                    // 设置新的未完成句子
+                    currentIncomplete = line;
                 } else if (currentIncomplete.trim()) {
                     console.log('📝 句子延续更新:', line);
+                    // 设置新的未完成句子
+                    currentIncomplete = line;
+                } else {
+                    // 设置新的未完成句子
+                    currentIncomplete = line;
                 }
-
-                // 设置新的未完成句子
-                currentIncomplete = line;
             }
         }
 
@@ -867,6 +913,11 @@
             if (currentWords.length < 3 || newWords.length < 3) {
                 // 检查是否有任何单词重叠
                 const hasOverlap = currentWords.some(word => newWords.includes(word));
+                console.log('🔍 短句子重叠检测:', {
+                    currentWords: currentWords,
+                    newWords: newWords,
+                    hasOverlap: hasOverlap
+                });
                 return hasOverlap;
             }
 
@@ -1013,8 +1064,17 @@
 
         // 智能单词级更新函数
         function updateWordsInElement(element, newText) {
+            // 添加安全检查，确保元素仍然在DOM中
+            if (!element || !element.isConnected) {
+                console.warn('尝试更新已断开连接的元素，跳过更新');
+                return;
+            }
+
             const textContainer = element.querySelector('.sentence-text');
-            if (!textContainer) return;
+            if (!textContainer || !textContainer.isConnected) {
+                console.warn('文本容器不存在或已断开连接，跳过更新');
+                return;
+            }
 
             const oldText = textContainer.getAttribute('data-text') || '';
             const oldWords = oldText.trim().split(/\s+/).filter(w => w);
@@ -1031,6 +1091,12 @@
             if (firstDiffIndex === oldWords.length && newWords.length > oldWords.length) {
                 // 只添加新单词
                 for (let i = firstDiffIndex; i < newWords.length; i++) {
+                    // 再次检查容器是否仍然连接
+                    if (!textContainer.isConnected) {
+                        console.warn('文本容器在更新过程中断开连接，停止更新');
+                        return;
+                    }
+
                     // 如果不是第一个单词且容器中已有内容，添加空格
                     if (i > 0 || textContainer.childNodes.length > 0) {
                         textContainer.appendChild(document.createTextNode(' '));
@@ -1049,19 +1115,35 @@
                 // 找到对应修改位置的DOM节点
                 for (let i = 0; i < childNodes.length && wordCount < firstDiffIndex; i++) {
                     if (childNodes[i].nodeType === Node.ELEMENT_NODE &&
-                        childNodes[i].classList.contains('word')) {
+                        childNodes[i].classList && childNodes[i].classList.contains('word')) {
                         wordCount++;
                     }
                     nodeIndex = i + 1;
                 }
 
-                // 移除从修改位置开始的所有节点
-                while (textContainer.childNodes.length > nodeIndex) {
-                    textContainer.removeChild(textContainer.lastChild);
+                // 安全地移除从修改位置开始的所有节点
+                try {
+                    while (textContainer.childNodes.length > nodeIndex && textContainer.isConnected) {
+                        const lastChild = textContainer.lastChild;
+                        if (lastChild && lastChild.parentNode === textContainer) {
+                            textContainer.removeChild(lastChild);
+                        } else {
+                            break; // 如果无法安全移除，停止操作
+                        }
+                    }
+                } catch (error) {
+                    console.warn('移除子节点时出错:', error);
+                    return;
                 }
 
                 // 添加修改后的单词
                 for (let i = firstDiffIndex; i < newWords.length; i++) {
+                    // 再次检查容器是否仍然连接
+                    if (!textContainer.isConnected) {
+                        console.warn('文本容器在更新过程中断开连接，停止更新');
+                        return;
+                    }
+
                     if (i > firstDiffIndex || (firstDiffIndex > 0 && textContainer.childNodes.length > 0)) {
                         textContainer.appendChild(document.createTextNode(' '));
                     }
@@ -1071,7 +1153,9 @@
             }
 
             // 更新存储的文本
-            textContainer.setAttribute('data-text', newText);
+            if (textContainer.isConnected) {
+                textContainer.setAttribute('data-text', newText);
+            }
 
             // 启动单词稳定化定时器
             startWordStabilizeTimer();
@@ -1949,6 +2033,31 @@ def POSTSOLVE(line):
                 });
             }
         }
+
+        // 全局错误处理器，用于捕获扩展脚本错误
+        window.addEventListener('error', (event) => {
+            // 检查是否是扩展脚本错误（通常包含特定的文件名或错误信息）
+            if (event.filename && (
+                event.filename.includes('a2_hightlight.js') ||
+                event.filename.includes('chrome-extension://') ||
+                event.filename.includes('moz-extension://')
+            )) {
+                console.warn('捕获到扩展脚本错误，已忽略:', event.error);
+                event.preventDefault(); // 阻止错误冒泡
+                return true;
+            }
+
+            // 检查错误消息是否与DOM操作相关
+            if (event.error && event.error.message && (
+                event.error.message.includes('closest') ||
+                event.error.message.includes('Cannot read properties of null') ||
+                event.error.message.includes('Cannot read properties of undefined')
+            )) {
+                console.warn('捕获到DOM操作错误，可能来自扩展脚本:', event.error);
+                event.preventDefault();
+                return true;
+            }
+        });
 
         // 页面加载完成后初始化
         window.addEventListener('load', () => {
