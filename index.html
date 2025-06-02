@@ -324,7 +324,9 @@
         .hide-controls-toggle,
         .lingkuma-install,
         .copy-luna-script,
-        .download-luna {
+        .download-luna,
+        .tutorial-link,
+        .github-link {
             background-color: var(--container-bg);
             color: var(--text-color);
             border: 1px solid var(--border-color);
@@ -345,7 +347,9 @@
         .hide-controls-toggle:hover,
         .lingkuma-install:hover,
         .copy-luna-script:hover,
-        .download-luna:hover {
+        .download-luna:hover,
+        .tutorial-link:hover,
+        .github-link:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
@@ -383,6 +387,28 @@
             border-color: #e55a2b;
         }
 
+        .tutorial-link {
+            background-color: #9c27b0;
+            color: white;
+            border-color: #9c27b0;
+        }
+
+        .tutorial-link:hover {
+            background-color: #7b1fa2;
+            border-color: #7b1fa2;
+        }
+
+        .github-link {
+            background-color: #24292e;
+            color: white;
+            border-color: #24292e;
+        }
+
+        .github-link:hover {
+            background-color: #1b1f23;
+            border-color: #1b1f23;
+        }
+
         .editable-title {
             background: transparent;
             border: none;
@@ -409,7 +435,10 @@
         .controls-hidden .theme-toggle,
         .controls-hidden .hide-controls-toggle,
         .controls-hidden .copy-luna-script,
-        .controls-hidden .download-luna {
+        .controls-hidden .download-luna,
+        .controls-hidden .tutorial-link,
+        .controls-hidden .lingkuma-install,
+        .controls-hidden .github-link {
             opacity: 0;
             pointer-events: none;
         }
@@ -424,8 +453,8 @@
             position: fixed;
             top: 0;
             left: 0;
-            width: 200px;
-            height: 250px;
+            width: 280px;
+            height: 400px;
             z-index: 999;
             pointer-events: none;
         }
@@ -434,11 +463,14 @@
             pointer-events: auto;
         }
 
-        /* 悬浮时显示隐藏按钮和主题按钮 */
-        .controls-hidden .hide-controls-toggle.show-on-hover,
-        .controls-hidden .theme-toggle.show-on-hover,
-        .controls-hidden .copy-luna-script.show-on-hover,
-        .controls-hidden .download-luna.show-on-hover {
+        /* 悬浮时显示所有按钮 - 使用父元素hover */
+        .controls-hidden .top-left-controls:hover .theme-toggle,
+        .controls-hidden .top-left-controls:hover .hide-controls-toggle,
+        .controls-hidden .top-left-controls:hover .copy-luna-script,
+        .controls-hidden .top-left-controls:hover .download-luna,
+        .controls-hidden .top-left-controls:hover .tutorial-link,
+        .controls-hidden .top-left-controls:hover .lingkuma-install,
+        .controls-hidden .top-left-controls:hover .github-link {
             opacity: 1 !important;
             pointer-events: auto !important;
         }
@@ -470,7 +502,9 @@
             .hide-controls-toggle,
             .lingkuma-install,
             .copy-luna-script,
-            .download-luna {
+            .download-luna,
+            .tutorial-link,
+            .github-link {
                 padding: 6px 10px;
                 font-size: 13px;
                 min-width: 100px;
@@ -478,8 +512,8 @@
 
             .hide-controls-hover-area {
                 left: 0;
-                width: 160px;
-                height: 200px;
+                width: 220px;
+                height: 320px;
             }
 
             .btn {
@@ -493,16 +527,34 @@
 <body>
     <!-- 左上角按钮容器 - 竖直排列 -->
     <div class="top-left-controls">
+  
+
+        <a href="https://www.lingkuma.org/live-captions-zh"
+           target="_blank"
+           class="tutorial-link">
+            📖 使用教程
+        </a>
+
         <div id="copy-luna-script" class="copy-luna-script" onclick="copyLunaScript()">
-            📋 复制Luna python脚本
+            📋 复制Luna脚本
         </div>
 
         <a href="https://docs.lunatranslator.org/"
            target="_blank"
            class="download-luna">
-            🌙 下载Luna
+            🌙 LunaTranslator
         </a>
+        <a href="https://chromewebstore.google.com/detail/lingkuma-language-learnin/denpakphibjnpnnkcnhiniicbffdamfh"
+        target="_blank"
+        class="lingkuma-install">
+         🐻 Lingkuma
+     </a>
 
+     <a href="https://github.com/lingkuma/LiveCaptionsPicker"
+     target="_blank"
+     class="github-link">
+      🐙 GitHub
+  </a>
         <div id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">
             🌙 浅色模式
         </div>
@@ -511,11 +563,7 @@
             👁️ 隐藏控件
         </div>
 
-        <a href="https://chromewebstore.google.com/detail/lingkuma-language-learnin/denpakphibjnpnnkcnhiniicbffdamfh"
-           target="_blank"
-           class="lingkuma-install">
-            🐻 安装Lingkuma
-        </a>
+        
     </div>
 
     <!-- 隐藏状态下的悬浮触发区域 -->
@@ -1515,47 +1563,10 @@ def POSTSOLVE(line):
             }
         }
 
-        // 设置悬浮事件
+        // 设置悬浮事件 - 简化版本，主要依靠CSS
         function setupHoverEvents() {
-            const copyLunaScriptEl = document.getElementById('copy-luna-script');
-            const downloadLunaEl = document.querySelector('.download-luna');
-
-            // 悬浮区域鼠标进入时显示所有按钮
-            hideControlsHoverAreaEl.addEventListener('mouseenter', () => {
-                if (controlsHidden) {
-                    hideControlsToggleEl.classList.add('show-on-hover');
-                    themeToggleEl.classList.add('show-on-hover');
-                    copyLunaScriptEl.classList.add('show-on-hover');
-                    downloadLunaEl.classList.add('show-on-hover');
-                }
-            });
-
-            // 悬浮区域鼠标离开时隐藏按钮
-            hideControlsHoverAreaEl.addEventListener('mouseleave', () => {
-                if (controlsHidden) {
-                    hideControlsToggleEl.classList.remove('show-on-hover');
-                    themeToggleEl.classList.remove('show-on-hover');
-                    copyLunaScriptEl.classList.remove('show-on-hover');
-                    downloadLunaEl.classList.remove('show-on-hover');
-                }
-            });
-
-            // 为每个按钮添加悬浮事件
-            const buttons = [hideControlsToggleEl, themeToggleEl, copyLunaScriptEl, downloadLunaEl];
-
-            buttons.forEach(button => {
-                button.addEventListener('mouseenter', () => {
-                    if (controlsHidden) {
-                        buttons.forEach(btn => btn.classList.add('show-on-hover'));
-                    }
-                });
-
-                button.addEventListener('mouseleave', () => {
-                    if (controlsHidden) {
-                        buttons.forEach(btn => btn.classList.remove('show-on-hover'));
-                    }
-                });
-            });
+            // CSS已经处理了主要的hover逻辑，这里只需要处理一些边缘情况
+            // 不需要复杂的JavaScript事件监听
         }
 
         // Telegraph相关功能
