@@ -1,0 +1,2 @@
+# LiveCaptions
+LiveCaptions for LunaTranslator
