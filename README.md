@@ -36,7 +36,7 @@ LiveCaptionsWeb/
 ### 环境要求
 - Python 3.6+
 - 现代浏览器（Chrome、Firefox、Safari、Edge）
-- Luna脚本环境（用于字幕数据源）
+- LunaTranslator（用于字幕数据源）
 
 ### 安装步骤
 
@@ -55,7 +55,7 @@ LiveCaptionsWeb/
    - 默认端口：8765（如果占用会自动尝试8766）
 
 4. **打开界面**
-   - 在浏览器中打开 `live_captions.html`
+   - 在浏览器中打开 `index.html`
    - 点击"开始连接"按钮连接到后端服务
 
 
@@ -65,5 +65,4 @@ LiveCaptionsWeb/
 
 ## 🙏 致谢
 
-- Luna脚本平台提供数据源支持
-- Telegraph平台提供分享服务
+- [LunaTransator](https://github.com/HIllya51/LunaTranslator)
