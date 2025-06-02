@@ -322,7 +322,9 @@
 
         .theme-toggle,
         .hide-controls-toggle,
-        .lingkuma-install {
+        .lingkuma-install,
+        .copy-luna-script,
+        .download-luna {
             background-color: var(--container-bg);
             color: var(--text-color);
             border: 1px solid var(--border-color);
@@ -341,7 +343,9 @@
 
         .theme-toggle:hover,
         .hide-controls-toggle:hover,
-        .lingkuma-install:hover {
+        .lingkuma-install:hover,
+        .copy-luna-script:hover,
+        .download-luna:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
@@ -355,6 +359,28 @@
         .lingkuma-install:hover {
             background-color: #45a049;
             border-color: #45a049;
+        }
+
+        .copy-luna-script {
+            background-color: #007acc;
+            color: white;
+            border-color: #007acc;
+        }
+
+        .copy-luna-script:hover {
+            background-color: #005a9e;
+            border-color: #005a9e;
+        }
+
+        .download-luna {
+            background-color: #ff6b35;
+            color: white;
+            border-color: #ff6b35;
+        }
+
+        .download-luna:hover {
+            background-color: #e55a2b;
+            border-color: #e55a2b;
         }
 
         .editable-title {
@@ -381,7 +407,9 @@
         .controls-hidden .stats,
         .controls-hidden .status,
         .controls-hidden .theme-toggle,
-        .controls-hidden .hide-controls-toggle {
+        .controls-hidden .hide-controls-toggle,
+        .controls-hidden .copy-luna-script,
+        .controls-hidden .download-luna {
             opacity: 0;
             pointer-events: none;
         }
@@ -396,8 +424,8 @@
             position: fixed;
             top: 0;
             left: 0;
-            width: 180px;
-            height: 150px;
+            width: 200px;
+            height: 250px;
             z-index: 999;
             pointer-events: none;
         }
@@ -408,7 +436,9 @@
 
         /* 悬浮时显示隐藏按钮和主题按钮 */
         .controls-hidden .hide-controls-toggle.show-on-hover,
-        .controls-hidden .theme-toggle.show-on-hover {
+        .controls-hidden .theme-toggle.show-on-hover,
+        .controls-hidden .copy-luna-script.show-on-hover,
+        .controls-hidden .download-luna.show-on-hover {
             opacity: 1 !important;
             pointer-events: auto !important;
         }
@@ -438,7 +468,9 @@
 
             .theme-toggle,
             .hide-controls-toggle,
-            .lingkuma-install {
+            .lingkuma-install,
+            .copy-luna-script,
+            .download-luna {
                 padding: 6px 10px;
                 font-size: 13px;
                 min-width: 100px;
@@ -446,8 +478,8 @@
 
             .hide-controls-hover-area {
                 left: 0;
-                width: 140px;
-                height: 120px;
+                width: 160px;
+                height: 200px;
             }
 
             .btn {
@@ -461,6 +493,16 @@
 <body>
     <!-- 左上角按钮容器 - 竖直排列 -->
     <div class="top-left-controls">
+        <div id="copy-luna-script" class="copy-luna-script" onclick="copyLunaScript()">
+            📋 复制Luna python脚本
+        </div>
+
+        <a href="https://docs.lunatranslator.org/"
+           target="_blank"
+           class="download-luna">
+            🌙 下载Luna
+        </a>
+
         <div id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">
             🌙 浅色模式
         </div>
@@ -1252,6 +1294,146 @@
             listeningTimeEl.textContent = timeString;
         }
 
+        // 复制Luna脚本功能
+        async function copyLunaScript() {
+            const lunaScriptContent = `
+import json
+import threading
+import time
+import socket
+
+_current_line = ""  # 当前行数据
+_server_socket = None  # 服务器socket
+_server_thread = None  # 服务器线程
+_server_running = False  # 服务器运行状态
+
+def handle_request(client_socket):
+    """处理单个HTTP请求"""
+    try:
+        request = client_socket.recv(1024).decode('utf-8')
+
+        if 'GET /captions' in request:
+            # 构造响应数据
+            data = {
+                'current_line': _current_line,
+                'timestamp': time.time()
+            }
+
+            response_body = json.dumps(data, ensure_ascii=False)
+            response = f"""HTTP/1.1 200 OK\\r
+Content-Type: application/json; charset=utf-8\\r
+Access-Control-Allow-Origin: *\\r
+Content-Length: {len(response_body.encode('utf-8'))}\\r
+\\r
+{response_body}"""
+        else:
+            response = "HTTP/1.1 404 Not Found\\r\\n\\r\\n"
+
+        client_socket.send(response.encode('utf-8'))
+    except Exception as e:
+        print(f"处理请求错误: {e}")
+    finally:
+        client_socket.close()
+
+def server_loop():
+    """服务器主循环"""
+    global _server_socket, _server_running
+
+    while _server_running:
+        try:
+            client_socket, addr = _server_socket.accept()
+            # 在新线程中处理请求
+            client_thread = threading.Thread(target=handle_request, args=(client_socket,), daemon=True)
+            client_thread.start()
+        except Exception as e:
+            if _server_running:  # 只在服务器运行时打印错误
+                print(f"接受连接错误: {e}")
+
+def start_server():
+    """启动HTTP服务器"""
+    global _server_socket, _server_thread, _server_running
+
+    if _server_socket is None:
+        try:
+            print("正在启动Caption服务器...")
+            _server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            _server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            _server_socket.bind(('127.0.0.1', 8765))
+            _server_socket.listen(5)
+            _server_running = True
+
+            _server_thread = threading.Thread(target=server_loop, daemon=True)
+            _server_thread.start()
+            print("Caption server started on http://127.0.0.1:8765")
+        except Exception as e:
+            print(f"Failed to start server: {e}")
+            # 尝试其他端口
+            try:
+                print("尝试端口8766...")
+                _server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                _server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                _server_socket.bind(('127.0.0.1', 8766))
+                _server_socket.listen(5)
+                _server_running = True
+
+                _server_thread = threading.Thread(target=server_loop, daemon=True)
+                _server_thread.start()
+                print("Caption server started on http://127.0.0.1:8766")
+            except Exception as e2:
+                print(f"端口8766也失败: {e2}")
+
+def stop_server():
+    """停止HTTP服务器"""
+    global _server_socket, _server_thread, _server_running
+
+    _server_running = False
+    if _server_socket:
+        _server_socket.close()
+        _server_socket = None
+        _server_thread = None
+
+def POSTSOLVE(line):
+    """
+    Luna脚本接口函数
+    - 不做任何缓存处理
+    - 只是将当前line数据提供给网页端
+    - Luna正常返回line内容
+    """
+    global _current_line
+
+    print(f"POSTSOLVE被调用，line: '{line}'")  # 调试信息
+
+    # 启动服务器（如果还没启动）
+    start_server()
+
+    # 更新当前行数据供网页端获取
+    _current_line = line if line else ""
+    print(f"更新_current_line: '{_current_line}'")  # 调试信息
+
+    # Luna直接返回原始内容，不做任何处理
+    return line if line else ""
+`.trim();
+
+            try {
+                await navigator.clipboard.writeText(lunaScriptContent);
+
+                // 临时更改按钮文本以显示成功
+                const copyBtn = document.getElementById('copy-luna-script');
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '✅ 已复制!';
+                copyBtn.style.backgroundColor = '#28a745';
+
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                    copyBtn.style.backgroundColor = '#007acc';
+                }, 2000);
+
+            } catch (err) {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制脚本内容');
+            }
+        }
+
         // 主题切换功能
         function toggleTheme() {
             const currentTheme = document.body.getAttribute('data-theme');
@@ -1335,11 +1517,16 @@
 
         // 设置悬浮事件
         function setupHoverEvents() {
-            // 悬浮区域鼠标进入时显示隐藏按钮和主题按钮
+            const copyLunaScriptEl = document.getElementById('copy-luna-script');
+            const downloadLunaEl = document.querySelector('.download-luna');
+
+            // 悬浮区域鼠标进入时显示所有按钮
             hideControlsHoverAreaEl.addEventListener('mouseenter', () => {
                 if (controlsHidden) {
                     hideControlsToggleEl.classList.add('show-on-hover');
                     themeToggleEl.classList.add('show-on-hover');
+                    copyLunaScriptEl.classList.add('show-on-hover');
+                    downloadLunaEl.classList.add('show-on-hover');
                 }
             });
 
@@ -1348,37 +1535,26 @@
                 if (controlsHidden) {
                     hideControlsToggleEl.classList.remove('show-on-hover');
                     themeToggleEl.classList.remove('show-on-hover');
+                    copyLunaScriptEl.classList.remove('show-on-hover');
+                    downloadLunaEl.classList.remove('show-on-hover');
                 }
             });
 
-            // 隐藏按钮本身的悬浮事件
-            hideControlsToggleEl.addEventListener('mouseenter', () => {
-                if (controlsHidden) {
-                    hideControlsToggleEl.classList.add('show-on-hover');
-                    themeToggleEl.classList.add('show-on-hover');
-                }
-            });
+            // 为每个按钮添加悬浮事件
+            const buttons = [hideControlsToggleEl, themeToggleEl, copyLunaScriptEl, downloadLunaEl];
 
-            hideControlsToggleEl.addEventListener('mouseleave', () => {
-                if (controlsHidden) {
-                    hideControlsToggleEl.classList.remove('show-on-hover');
-                    themeToggleEl.classList.remove('show-on-hover');
-                }
-            });
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', () => {
+                    if (controlsHidden) {
+                        buttons.forEach(btn => btn.classList.add('show-on-hover'));
+                    }
+                });
 
-            // 主题按钮本身的悬浮事件
-            themeToggleEl.addEventListener('mouseenter', () => {
-                if (controlsHidden) {
-                    hideControlsToggleEl.classList.add('show-on-hover');
-                    themeToggleEl.classList.add('show-on-hover');
-                }
-            });
-
-            themeToggleEl.addEventListener('mouseleave', () => {
-                if (controlsHidden) {
-                    hideControlsToggleEl.classList.remove('show-on-hover');
-                    themeToggleEl.classList.remove('show-on-hover');
-                }
+                button.addEventListener('mouseleave', () => {
+                    if (controlsHidden) {
+                        buttons.forEach(btn => btn.classList.remove('show-on-hover'));
+                    }
+                });
             });
         }
 
