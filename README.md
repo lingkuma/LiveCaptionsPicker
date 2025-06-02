@@ -1,6 +1,6 @@
-# Live Captions Web
+# LiveCaptionsPicker
 
-一个实时字幕显示系统，支持从Luna Python脚本获取字幕数据并在网页中实时显示。
+一个实时字幕显示系统，支持从LunaTranslator Python脚本获取字幕数据并在网页中实时显示。
 
 ## 🌟 功能特性
 
@@ -10,7 +10,7 @@
 - **增量显示** - 新内容增量添加，已完成内容保持不变
 
 ### 插件兼容
-- **Lingkuma单词高亮兼容** - 超级完美支持Lingkuma，高亮生词，熟词，解析，小窗，侧栏等
+- **[Lingkuma单词高亮兼容](https://chromewebstore.google.com/detail/lingkuma-language-learnin/denpakphibjnpnnkcnhiniicbffdamfh)** - 超级完美支持Lingkuma，高亮生词，熟词，解析，小窗，侧栏等
 - **沉浸式翻译兼容** - 完美支持沉浸式翻译插件
 
 ### 分享功能
@@ -27,7 +27,7 @@
 ```
 LiveCaptionsWeb/
 ├── README.md                 # 项目说明文档
-├── live_captions.html        # 主界面HTML文件
+├── index.html        # 主界面HTML文件
 └── LunaCaptionsListener.py   # Luna Python脚本
 ```
 
