@@ -1874,13 +1874,31 @@ def POSTSOLVE(line):
                     // 创建新的分割句子元素
                     segmentEl = document.createElement('div');
                     segmentEl.className = 'comma-split-sentence updating';
+                    segmentEl.setAttribute('data-segment-text', segment);
+                    segmentEl.setAttribute('data-last-update', Date.now().toString());
+                    segmentEl.textContent = segment;
                     splitContainer.appendChild(segmentEl);
-                } else if (segmentEl.textContent !== segment) {
-                    // 内容发生变化，重新标记为更新中
-                    segmentEl.className = 'comma-split-sentence updating';
+                } else {
+                    // 检查内容是否真的发生了变化
+                    const currentText = segmentEl.getAttribute('data-segment-text') || segmentEl.textContent;
+                    if (currentText !== segment) {
+                        // 内容发生变化，只有在不是稳定状态时才更新
+                        if (!segmentEl.classList.contains('stable')) {
+                            segmentEl.className = 'comma-split-sentence updating';
+                            segmentEl.setAttribute('data-segment-text', segment);
+                            segmentEl.setAttribute('data-last-update', Date.now().toString());
+                            segmentEl.textContent = segment;
+                        } else {
+                            // 如果已经是稳定状态，但内容确实变化了，重新标记为更新中
+                            console.log(`逗号句子 ${index} 已稳定但内容变化，重新更新:`, currentText, '->', segment);
+                            segmentEl.className = 'comma-split-sentence updating';
+                            segmentEl.setAttribute('data-segment-text', segment);
+                            segmentEl.setAttribute('data-last-update', Date.now().toString());
+                            segmentEl.textContent = segment;
+                        }
+                    }
+                    // 如果内容相同，保持当前状态不变（不刷新DOM）
                 }
-
-                segmentEl.textContent = segment;
             });
 
             // 移除多余的分割句子元素
@@ -1914,10 +1932,16 @@ def POSTSOLVE(line):
                 clearTimeout(window.commaSplitStabilizeTimer);
             }
 
-            // 设置新的定时器，2秒后将更新中的分割句子标记为稳定
+            // 设置新的定时器，500毫秒后检查稳定化
+            // 更短的时间让翻译插件能更快处理固定的句子片段
             window.commaSplitStabilizeTimer = setTimeout(() => {
                 stabilizeCommaSplitSentences();
-            }, 2000);
+                // 如果还有更新中的句子，继续检查
+                const incompleteEl = document.getElementById('current-incomplete');
+                if (incompleteEl && incompleteEl.querySelectorAll('.comma-split-sentence.updating').length > 0) {
+                    startCommaSplitStabilizeTimer();
+                }
+            }, 500);
         }
 
         // 将更新中的逗号分割句子标记为稳定
@@ -1925,9 +1949,18 @@ def POSTSOLVE(line):
             const incompleteEl = document.getElementById('current-incomplete');
             if (incompleteEl) {
                 const updatingSegments = incompleteEl.querySelectorAll('.comma-split-sentence.updating');
-                updatingSegments.forEach(segment => {
-                    segment.classList.remove('updating');
-                    segment.classList.add('stable');
+                updatingSegments.forEach((segment, index) => {
+                    // 检查这个句子是否在一定时间内没有变化
+                    const lastUpdateTime = segment.getAttribute('data-last-update') || '0';
+                    const currentTime = Date.now();
+                    const timeSinceUpdate = currentTime - parseInt(lastUpdateTime);
+
+                    // 如果超过800毫秒没有更新，标记为稳定
+                    if (timeSinceUpdate >= 800) {
+                        segment.classList.remove('updating');
+                        segment.classList.add('stable');
+                        console.log(`逗号句子 ${index} 已稳定:`, segment.textContent);
+                    }
                 });
             }
         }
