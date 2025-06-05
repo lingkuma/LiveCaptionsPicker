@@ -688,6 +688,10 @@
     </div>
 
     <script>
+        // 标点符号常量定义（支持中英日文）
+        const SENTENCE_ENDINGS = '.。！!？?‥…：:';  // 句子结束标点
+        const COMMA_SEPARATORS = ',，、;；';        // 逗号分割标点
+
         let isConnected = false;
         let pollInterval = null;
         let completedSentences = [];
@@ -881,18 +885,15 @@
         }
 
         function processNewLine(line) {
-            // 句子结束标点
-            const sentenceEndings = '.。！!？?';
-
             // 检查是否包含句子结束标点
-            if (sentenceEndings.split('').some(char => line.includes(char))) {
+            if (SENTENCE_ENDINGS.split('').some(char => line.includes(char))) {
                 // 分割句子
                 const sentences = [];
                 let tempSentence = '';
 
                 for (const char of line) {
                     tempSentence += char;
-                    if (sentenceEndings.includes(char)) {
+                    if (SENTENCE_ENDINGS.includes(char)) {
                         const sentence = tempSentence.trim();
                         if (sentence && !isAlreadyCompleted(sentence)) {
                             sentences.push(sentence);
@@ -1971,8 +1972,8 @@ def POSTSOLVE(line):
                 const char = text[i];
                 currentSegment += char;
 
-                // 检测逗号（包括中英文逗号）
-                if (char === ',' || char === '，') {
+                // 检测分割标点（包括中英日文逗号、顿号、分号）
+                if (COMMA_SEPARATORS.includes(char)) {
                     const trimmedSegment = currentSegment.trim();
                     if (trimmedSegment) {
                         segments.push(trimmedSegment);
@@ -2160,8 +2161,9 @@ def POSTSOLVE(line):
                 return [];
             }
 
-            // 简单的段落分割，每个句子作为一个段落
-            const sentences = text.split(/[.。！!？?]/).filter(s => s.trim());
+            // 简单的段落分割，每个句子作为一个段落（支持中英日文句子结束标点）
+            const sentenceEndingRegex = new RegExp(`[${SENTENCE_ENDINGS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}]`);
+            const sentences = text.split(sentenceEndingRegex).filter(s => s.trim());
             const nodes = [];
 
             sentences.forEach(sentence => {
