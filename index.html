@@ -301,6 +301,26 @@
             box-shadow: 0 4px 12px rgba(25,135,84,0.4);
         }
 
+        .btn.comma-mode {
+            background-color: #6f42c1;
+            box-shadow: 0 2px 8px rgba(111,66,193,0.3);
+        }
+
+        .btn.comma-mode:hover {
+            background-color: #5a32a3;
+            box-shadow: 0 4px 12px rgba(111,66,193,0.4);
+        }
+
+        .btn.comma-mode.active {
+            background-color: #198754;
+            box-shadow: 0 2px 8px rgba(25,135,84,0.3);
+        }
+
+        .btn.comma-mode.active:hover {
+            background-color: #157347;
+            box-shadow: 0 4px 12px rgba(25,135,84,0.4);
+        }
+
         .stats {
             position: fixed;
             bottom: 30px;
@@ -477,6 +497,57 @@
             pointer-events: auto !important;
         }
 
+        /* 逗号分割句子样式 */
+        .comma-split-container {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: var(--container-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .comma-split-sentence {
+            margin-bottom: 8px;
+            padding: 4px 8px;
+            background-color: var(--bg-color);
+            border-radius: 4px;
+            font-size: 0.95em;
+            line-height: 1.5;
+            transition: all 0.3s ease;
+            border-left: 3px solid var(--border-color);
+        }
+
+        .comma-split-sentence:last-child {
+            margin-bottom: 0;
+        }
+
+        .comma-split-sentence.updating {
+            border-left-color: #007acc;
+            background-color: rgba(0, 122, 204, 0.05);
+        }
+
+        .comma-split-sentence.stable {
+            border-left-color: var(--text-secondary);
+        }
+
+        /* 逗号分割句子中的文本也需要防翻译保护 */
+        .comma-split-sentence.updating,
+        .comma-split-sentence.updating * {
+            translate: no;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .comma-split-sentence.stable * {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .container {
@@ -602,6 +673,9 @@
         <button id="auto-scroll-btn" class="btn auto-scroll active" onclick="toggleAutoScroll()">
             <span id="auto-scroll-text">🔄 自动滚动</span>
         </button>
+        <button id="comma-mode-btn" class="btn comma-mode" onclick="toggleCommaMode()">
+            <span id="comma-mode-text">📝 逗号换行</span>
+        </button>
         <button id="telegraph-btn" class="btn telegraph" onclick="sendToTelegraph()">分享原文</button>
         <button id="telegraph-with-translation-btn" class="btn telegraph-with-translation" onclick="sendToTelegraphWithTranslation()">分享附沉浸翻译</button>
     </div>
@@ -629,6 +703,8 @@
         let startTime = null;  // 开始监听的时间
         let totalWords = 0;  // 总单词数
         let timeUpdateInterval = null;  // 时间更新定时器
+        let commaMode = false;  // 逗号换行模式开关
+        let commaSplitSentences = [];  // 逗号分割的句子数组
 
         const statusEl = document.getElementById('status');
         const captionsContainer = document.getElementById('captions-container');
@@ -643,6 +719,8 @@
         const hideControlsHoverAreaEl = document.getElementById('hide-controls-hover-area');
         const autoScrollBtnEl = document.getElementById('auto-scroll-btn');
         const autoScrollTextEl = document.getElementById('auto-scroll-text');
+        const commaModeBtnEl = document.getElementById('comma-mode-btn');
+        const commaModeTextEl = document.getElementById('comma-mode-text');
         let controlsHidden = false;
 
         function updateStatus(connected) {
@@ -789,6 +867,11 @@
 
             renderCaptions();
             updateStats();
+
+            // 如果启用了逗号换行模式，处理逗号分割
+            if (commaMode) {
+                processCommaMode();
+            }
         }
 
         function processNewLine(line) {
@@ -1346,6 +1429,13 @@
                 scrollTimer = null;
             }
 
+            // 清除逗号分割相关数据
+            commaSplitSentences = [];
+            if (window.commaSplitStabilizeTimer) {
+                clearTimeout(window.commaSplitStabilizeTimer);
+                window.commaSplitStabilizeTimer = null;
+            }
+
             updateStats();
         }
 
@@ -1649,10 +1739,174 @@ def POSTSOLVE(line):
             }
         }
 
+        // 初始化逗号换行模式设置
+        function initCommaMode() {
+            // 从本地存储获取逗号换行模式设置，默认为关闭
+            const savedCommaMode = localStorage.getItem('commaMode');
+            commaMode = savedCommaMode === 'true';
+
+            if (commaMode) {
+                commaModeBtnEl.classList.add('active');
+                commaModeTextEl.textContent = '📝 逗号换行';
+            } else {
+                commaModeBtnEl.classList.remove('active');
+                commaModeTextEl.textContent = '📝 逗号换行';
+            }
+        }
+
+        // 切换逗号换行模式
+        function toggleCommaMode() {
+            commaMode = !commaMode;
+
+            if (commaMode) {
+                commaModeBtnEl.classList.add('active');
+                commaModeTextEl.textContent = '📝 逗号换行';
+            } else {
+                commaModeBtnEl.classList.remove('active');
+                commaModeTextEl.textContent = '📝 逗号换行';
+                // 关闭模式时清除逗号分割显示
+                clearCommaSplitDisplay();
+            }
+
+            // 保存设置到本地存储
+            localStorage.setItem('commaMode', commaMode);
+        }
+
         // 设置悬浮事件 - 简化版本，主要依靠CSS
         function setupHoverEvents() {
             // CSS已经处理了主要的hover逻辑，这里只需要处理一些边缘情况
             // 不需要复杂的JavaScript事件监听
+        }
+
+        // 逗号换行模式处理函数
+        function processCommaMode() {
+            if (!currentIncomplete.trim()) {
+                clearCommaSplitDisplay();
+                return;
+            }
+
+            // 使用逗号分割句子
+            const segments = splitByComma(currentIncomplete);
+            updateCommaSplitDisplay(segments);
+        }
+
+        // 按逗号分割句子
+        function splitByComma(text) {
+            if (!text || !text.trim()) {
+                return [];
+            }
+
+            const segments = [];
+            let currentSegment = '';
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                currentSegment += char;
+
+                // 检测逗号（包括中英文逗号）
+                if (char === ',' || char === '，') {
+                    const trimmedSegment = currentSegment.trim();
+                    if (trimmedSegment) {
+                        segments.push(trimmedSegment);
+                    }
+                    currentSegment = '';
+                }
+            }
+
+            // 添加最后一个片段（如果有的话）
+            const finalSegment = currentSegment.trim();
+            if (finalSegment) {
+                segments.push(finalSegment);
+            }
+
+            return segments;
+        }
+
+        // 更新逗号分割显示
+        function updateCommaSplitDisplay(segments) {
+            const incompleteEl = document.getElementById('current-incomplete');
+            if (!incompleteEl) {
+                return;
+            }
+
+            // 查找或创建逗号分割容器
+            let splitContainer = incompleteEl.querySelector('.comma-split-container');
+            if (!splitContainer) {
+                splitContainer = document.createElement('div');
+                splitContainer.className = 'comma-split-container';
+                incompleteEl.appendChild(splitContainer);
+            }
+
+            // 比较新旧分割结果，只更新变化的部分
+            const existingSegments = Array.from(splitContainer.children);
+
+            // 更新或创建分割句子元素
+            segments.forEach((segment, index) => {
+                let segmentEl = existingSegments[index];
+
+                if (!segmentEl) {
+                    // 创建新的分割句子元素
+                    segmentEl = document.createElement('div');
+                    segmentEl.className = 'comma-split-sentence updating';
+                    addNoTranslateAttributes(segmentEl);
+                    splitContainer.appendChild(segmentEl);
+                } else if (segmentEl.textContent !== segment) {
+                    // 内容发生变化，重新标记为更新中
+                    segmentEl.className = 'comma-split-sentence updating';
+                    addNoTranslateAttributes(segmentEl);
+                }
+
+                segmentEl.textContent = segment;
+            });
+
+            // 移除多余的分割句子元素
+            while (existingSegments.length > segments.length) {
+                const extraEl = existingSegments.pop();
+                if (extraEl && extraEl.parentNode) {
+                    extraEl.parentNode.removeChild(extraEl);
+                }
+            }
+
+            // 启动稳定化定时器
+            startCommaSplitStabilizeTimer();
+        }
+
+        // 清除逗号分割显示
+        function clearCommaSplitDisplay() {
+            const incompleteEl = document.getElementById('current-incomplete');
+            if (incompleteEl) {
+                const splitContainer = incompleteEl.querySelector('.comma-split-container');
+                if (splitContainer) {
+                    splitContainer.remove();
+                }
+            }
+            commaSplitSentences = [];
+        }
+
+        // 启动逗号分割稳定化定时器
+        function startCommaSplitStabilizeTimer() {
+            // 清除之前的定时器
+            if (window.commaSplitStabilizeTimer) {
+                clearTimeout(window.commaSplitStabilizeTimer);
+            }
+
+            // 设置新的定时器，2秒后将更新中的分割句子标记为稳定
+            window.commaSplitStabilizeTimer = setTimeout(() => {
+                stabilizeCommaSplitSentences();
+            }, 2000);
+        }
+
+        // 将更新中的逗号分割句子标记为稳定
+        function stabilizeCommaSplitSentences() {
+            const incompleteEl = document.getElementById('current-incomplete');
+            if (incompleteEl) {
+                const updatingSegments = incompleteEl.querySelectorAll('.comma-split-sentence.updating');
+                updatingSegments.forEach(segment => {
+                    segment.classList.remove('updating');
+                    segment.classList.add('stable');
+                    removeNoTranslateAttributes(segment);
+                });
+            }
         }
 
         // Telegraph相关功能
@@ -2064,6 +2318,7 @@ def POSTSOLVE(line):
             initTheme();
             initControls();
             initAutoScroll();
+            initCommaMode();
 
             // 初始化统计显示
             updateStats();
