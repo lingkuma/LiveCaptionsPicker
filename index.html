@@ -47,6 +47,12 @@
             transition: background-color 0.3s ease;
         }
 
+        /* 顶部空白区域，为滚动到20%位置提供空间 */
+        .top-spacer {
+            height: 50vh; /* 顶部50%视口高度的空白 */
+            background-color: transparent;
+        }
+
         .header {
             text-align: center;
             margin-bottom: 40px;
@@ -122,7 +128,7 @@
 
         /* 底部固定高度的空白区域，用于提供滚动空间 */
         .bottom-spacer {
-            height: 300px; /* 固定高度，提供滚动空间 */
+            height: 100vh; /* 使用视口高度，确保有足够空间滚动到20%位置 */
             background-color: transparent;
         }
 
@@ -638,6 +644,9 @@
     </div>
 
     <div class="container">
+        <!-- 顶部空白区域，为滚动到20%位置提供空间 -->
+        <div class="top-spacer"></div>
+
         <div class="header">
             <input type="text" class="editable-title" value="Title edit" placeholder="点击编辑标题">
         </div>
@@ -696,6 +705,12 @@
         let timeUpdateInterval = null;  // 时间更新定时器
         let commaMode = false;  // 逗号换行模式开关
         let commaSplitSentences = [];  // 逗号分割的句子数组
+
+        // 新的滚动机制变量
+        let userScrollTimer = null;  // 用户手动滚动恢复定时器
+        let lastUserScrollTime = 0;  // 最后一次用户滚动时间
+        let isUserScrolling = false;  // 用户是否正在手动滚动
+        let lastAutoScrollPosition = 0;  // 上次自动滚动的位置
 
         const statusEl = document.getElementById('status');
         const captionsContainer = document.getElementById('captions-container');
@@ -1118,7 +1133,7 @@
                 shouldScheduleScroll = true;
             }
 
-            // 安排滚动调整，保持新句子在70%位置
+            // 安排滚动调整，当句子到达最后20%时滚动到上面20%
             if (shouldScheduleScroll && autoScrollEnabled) {
                 scheduleAutoScroll();
             }
@@ -1405,8 +1420,13 @@
             return div;
         }
 
-        // 安排自动滚动（保持新句子在70%位置）
+        // 安排自动滚动（新机制：当句子到达最后20%时滚动到上面20%）
         function scheduleAutoScroll() {
+            // 如果用户正在手动滚动，不执行自动滚动
+            if (isUserScrolling) {
+                return;
+            }
+
             // 清除之前的定时器
             if (scrollTimer) {
                 clearTimeout(scrollTimer);
@@ -1414,41 +1434,77 @@
 
             // 延迟滚动，等待文本稍微稳定
             scrollTimer = setTimeout(() => {
-                if (autoScrollEnabled) {
-                    smoothScrollToBottom();
+                if (autoScrollEnabled && !isUserScrolling) {
+                    checkAndAutoScroll();
                 }
-            }, 500); // 0.5秒后执行滚动，更快响应
+            }, 500); // 0.5秒后执行滚动检查
         }
 
-        // 滚动让新句子位置保持在页面70%位置
-        function smoothScrollToBottom() {
+        // 检查是否需要自动滚动，并执行滚动
+        function checkAndAutoScroll() {
             // 获取当前正在更新的句子元素（未完成的句子或最新完成的句子）
             const incompleteEl = document.getElementById('current-incomplete');
             const targetElement = incompleteEl || contentWrapper.lastElementChild;
 
             if (!targetElement) return;
 
-            // 计算目标位置：页面高度的70%
+            // 获取目标元素当前在页面中的位置
+            const elementRect = targetElement.getBoundingClientRect();
             const viewportHeight = window.innerHeight;
-            const targetViewportPosition = viewportHeight * 0.5;
+
+            // 检查元素是否在页面最后20%区域
+            const elementTop = elementRect.top;
+            const lastTwentyPercentStart = viewportHeight * 0.8; // 页面80%位置开始是最后20%
+
+            console.log('滚动检查:', {
+                elementTop: elementTop,
+                viewportHeight: viewportHeight,
+                lastTwentyPercentStart: lastTwentyPercentStart,
+                isInLastTwentyPercent: elementTop >= lastTwentyPercentStart
+            });
+
+            // 如果元素在最后20%区域，执行滚动到上面20%
+            if (elementTop >= lastTwentyPercentStart) {
+                console.log('句子到达最后20%区域，执行自动滚动');
+                scrollToTopTwentyPercent(targetElement);
+            }
+        }
+
+        // 滚动让目标元素位于页面上面20%位置
+        function scrollToTopTwentyPercent(targetElement) {
+            if (!targetElement) return;
+
+            const viewportHeight = window.innerHeight;
+            const targetViewportPosition = viewportHeight * 0.2; // 页面20%位置
 
             // 获取目标元素当前在页面中的位置
             const elementRect = targetElement.getBoundingClientRect();
             const elementCurrentPosition = elementRect.top;
 
-            // 计算需要滚动的距离，让元素移动到70%位置
+            // 计算需要滚动的距离，让元素移动到20%位置
             const scrollDistance = elementCurrentPosition - targetViewportPosition;
 
-            // 只有当需要滚动距离大于20px时才滚动（避免微小调整）
-            if (Math.abs(scrollDistance) > 20) {
-                const currentScroll = window.scrollY;
-                const targetScroll = currentScroll + scrollDistance;
+            const currentScroll = window.scrollY;
+            const targetScroll = Math.max(0, currentScroll + scrollDistance); // 确保不滚动到负值
 
-                window.scrollTo({
-                    top: targetScroll,
-                    behavior: 'smooth'
-                });
-            }
+            // 记录自动滚动位置
+            lastAutoScrollPosition = targetScroll;
+
+            console.log('滚动到20%位置详情:', {
+                viewportHeight: viewportHeight,
+                targetViewportPosition: targetViewportPosition,
+                elementCurrentPosition: elementCurrentPosition,
+                scrollDistance: scrollDistance,
+                currentScroll: currentScroll,
+                targetScroll: targetScroll
+            });
+
+            window.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth'
+            });
+
+            console.log('自动滚动到20%位置，目标滚动位置:', targetScroll);
         }
 
         function clearCaptions() {
@@ -1478,6 +1534,15 @@
                 scrollTimer = null;
             }
 
+            // 清除用户滚动相关定时器和状态
+            if (userScrollTimer) {
+                clearTimeout(userScrollTimer);
+                userScrollTimer = null;
+            }
+            isUserScrolling = false;
+            lastUserScrollTime = 0;
+            lastAutoScrollPosition = 0;
+
             // 清除逗号分割相关数据
             commaSplitSentences = [];
             clearCommaSplitDisplay(); // 清除独立的逗号分割容器
@@ -1490,8 +1555,12 @@
         }
 
         function scrollToBottom() {
-            // 使用新的平滑滚动机制
-            smoothScrollToBottom();
+            // 使用新的滚动机制，滚动到最新句子的20%位置
+            const incompleteEl = document.getElementById('current-incomplete');
+            const targetElement = incompleteEl || contentWrapper.lastElementChild;
+            if (targetElement) {
+                scrollToTopTwentyPercent(targetElement);
+            }
         }
 
         function scrollToTop() {
@@ -1500,6 +1569,55 @@
                 top: 0,
                 behavior: 'smooth'
             });
+        }
+
+        // 用户手动滚动检测和处理
+        function handleUserScroll() {
+            const currentTime = Date.now();
+            const currentScrollPosition = window.scrollY;
+
+            // 检查是否是用户手动滚动（不是自动滚动）
+            const isAutoScroll = Math.abs(currentScrollPosition - lastAutoScrollPosition) < 50;
+
+            if (!isAutoScroll) {
+                console.log('检测到用户手动滚动');
+                isUserScrolling = true;
+                lastUserScrollTime = currentTime;
+
+                // 清除之前的恢复定时器
+                if (userScrollTimer) {
+                    clearTimeout(userScrollTimer);
+                }
+
+                // 设置3秒后自动恢复
+                userScrollTimer = setTimeout(() => {
+                    console.log('3秒后自动恢复到20%位置');
+                    isUserScrolling = false;
+
+                    // 恢复到最新句子的20%位置
+                    const incompleteEl = document.getElementById('current-incomplete');
+                    const targetElement = incompleteEl || contentWrapper.lastElementChild;
+                    if (targetElement && autoScrollEnabled) {
+                        scrollToTopTwentyPercent(targetElement);
+                    }
+                }, 3000); // 3秒后恢复
+            }
+        }
+
+        // 初始化滚动监听器
+        function initScrollListener() {
+            let scrollTimeout;
+
+            window.addEventListener('scroll', () => {
+                // 防抖处理，避免过于频繁的检测
+                if (scrollTimeout) {
+                    clearTimeout(scrollTimeout);
+                }
+
+                scrollTimeout = setTimeout(() => {
+                    handleUserScroll();
+                }, 100); // 100ms防抖
+            }, { passive: true });
         }
 
         function toggleAutoScroll() {
@@ -2443,6 +2561,7 @@ def POSTSOLVE(line):
             initControls();
             initAutoScroll();
             initCommaMode();
+            initScrollListener(); // 初始化滚动监听器
 
             // 初始化统计显示
             updateStats();
@@ -2456,6 +2575,14 @@ def POSTSOLVE(line):
             if (savedToken) {
                 telegraphAccessToken = savedToken;
             }
+
+            // 初始滚动到标题位置，让用户能看到内容
+            setTimeout(() => {
+                const header = document.querySelector('.header');
+                if (header) {
+                    header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 500);
 
             setTimeout(startPolling, 1000);
         });
