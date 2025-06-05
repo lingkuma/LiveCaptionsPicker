@@ -1141,9 +1141,9 @@
                 // 但如果启用了逗号换行模式，需要先检查是否有逗号分割内容需要保留
                 if (existingIncomplete) {
                     if (commaMode) {
-                        const splitContainer = existingIncomplete.querySelector('.comma-split-container');
+                        const splitContainer = document.getElementById('comma-split-container-for-incomplete');
                         if (splitContainer && splitContainer.children.length > 0) {
-                            // 如果有逗号分割内容，将其转换为完成状态但保留显示
+                            // 如果有逗号分割内容，将未完成句子转换为完成状态
                             existingIncomplete.classList.remove('incomplete');
                             existingIncomplete.classList.add('completed');
                             existingIncomplete.id = `completed-from-incomplete-${Date.now()}`;
@@ -1155,17 +1155,27 @@
                                 removeNoTranslateAttributes(textContainer);
                             }
 
-                            // 将所有分割句子标记为稳定
+                            // 将独立的逗号分割容器转换为完成句子的子元素
+                            splitContainer.id = `comma-split-container-completed-${Date.now()}`;
+                            existingIncomplete.appendChild(splitContainer);
+
+                            // 将所有分割句子标记为稳定并添加翻译属性
                             const allSegments = splitContainer.querySelectorAll('.comma-split-sentence');
                             allSegments.forEach(segment => {
                                 segment.classList.remove('updating');
                                 segment.classList.add('stable');
+                                // 为稳定的逗号分割句子添加翻译属性
+                                addTranslateAttributes(segment);
                             });
                         } else {
                             existingIncomplete.remove();
+                            // 清除可能存在的空逗号分割容器
+                            clearCommaSplitDisplay();
                         }
                     } else {
                         existingIncomplete.remove();
+                        // 清除逗号分割显示
+                        clearCommaSplitDisplay();
                     }
                 }
             }
@@ -1325,6 +1335,15 @@
             element.removeAttribute('data-no-translate');
         }
 
+        // 添加翻译属性的辅助函数（用于固定的句子）
+        function addTranslateAttributes(element) {
+            element.setAttribute('translate', 'yes');
+            element.setAttribute('notranslate', 'false');
+            element.setAttribute('data-no-translate', 'false');
+            // 移除防翻译属性
+            element.removeAttribute('data-immersive-translate-ignore');
+        }
+
         // 创建带单词分割的句子元素
         function createSentenceElementWithWords(text, isCompleted, id) {
             const div = document.createElement('div');
@@ -1457,6 +1476,7 @@
 
             // 清除逗号分割相关数据
             commaSplitSentences = [];
+            clearCommaSplitDisplay(); // 清除独立的逗号分割容器
             if (window.commaSplitStabilizeTimer) {
                 clearTimeout(window.commaSplitStabilizeTimer);
                 window.commaSplitStabilizeTimer = null;
@@ -1855,12 +1875,14 @@ def POSTSOLVE(line):
                 return;
             }
 
-            // 查找或创建逗号分割容器
-            let splitContainer = incompleteEl.querySelector('.comma-split-container');
+            // 查找或创建逗号分割容器（作为独立元素，避免继承父元素的防翻译属性）
+            let splitContainer = document.getElementById('comma-split-container-for-incomplete');
             if (!splitContainer) {
                 splitContainer = document.createElement('div');
                 splitContainer.className = 'comma-split-container';
-                incompleteEl.appendChild(splitContainer);
+                splitContainer.id = 'comma-split-container-for-incomplete';
+                // 将分割容器插入到未完成句子的后面，作为同级元素
+                incompleteEl.parentNode.insertBefore(splitContainer, incompleteEl.nextSibling);
             }
 
             // 比较新旧分割结果，只更新变化的部分
@@ -1915,12 +1937,10 @@ def POSTSOLVE(line):
 
         // 清除逗号分割显示
         function clearCommaSplitDisplay() {
-            const incompleteEl = document.getElementById('current-incomplete');
-            if (incompleteEl) {
-                const splitContainer = incompleteEl.querySelector('.comma-split-container');
-                if (splitContainer) {
-                    splitContainer.remove();
-                }
+            // 清除独立的逗号分割容器
+            const splitContainer = document.getElementById('comma-split-container-for-incomplete');
+            if (splitContainer) {
+                splitContainer.remove();
             }
             commaSplitSentences = [];
         }
@@ -1937,8 +1957,8 @@ def POSTSOLVE(line):
             window.commaSplitStabilizeTimer = setTimeout(() => {
                 stabilizeCommaSplitSentences();
                 // 如果还有更新中的句子，继续检查
-                const incompleteEl = document.getElementById('current-incomplete');
-                if (incompleteEl && incompleteEl.querySelectorAll('.comma-split-sentence.updating').length > 0) {
+                const splitContainer = document.getElementById('comma-split-container-for-incomplete');
+                if (splitContainer && splitContainer.querySelectorAll('.comma-split-sentence.updating').length > 0) {
                     startCommaSplitStabilizeTimer();
                 }
             }, 500);
@@ -1946,9 +1966,9 @@ def POSTSOLVE(line):
 
         // 将更新中的逗号分割句子标记为稳定
         function stabilizeCommaSplitSentences() {
-            const incompleteEl = document.getElementById('current-incomplete');
-            if (incompleteEl) {
-                const updatingSegments = incompleteEl.querySelectorAll('.comma-split-sentence.updating');
+            const splitContainer = document.getElementById('comma-split-container-for-incomplete');
+            if (splitContainer) {
+                const updatingSegments = splitContainer.querySelectorAll('.comma-split-sentence.updating');
                 updatingSegments.forEach((segment, index) => {
                     // 检查这个句子是否在一定时间内没有变化
                     const lastUpdateTime = segment.getAttribute('data-last-update') || '0';
@@ -1959,6 +1979,10 @@ def POSTSOLVE(line):
                     if (timeSinceUpdate >= 800) {
                         segment.classList.remove('updating');
                         segment.classList.add('stable');
+
+                        // 为稳定的逗号分割句子添加翻译属性
+                        addTranslateAttributes(segment);
+
                         console.log(`逗号句子 ${index} 已稳定:`, segment.textContent);
                     }
                 });
@@ -1976,6 +2000,10 @@ def POSTSOLVE(line):
                 const segmentEl = document.createElement('div');
                 segmentEl.className = 'comma-split-sentence stable';
                 segmentEl.textContent = segment;
+
+                // 为完成句子中的逗号分割部分添加翻译属性
+                addTranslateAttributes(segmentEl);
+
                 splitContainer.appendChild(segmentEl);
             });
 
