@@ -1481,6 +1481,10 @@
             // 清除逗号分割相关数据
             commaSplitSentences = [];
             clearCommaSplitDisplay(); // 清除独立的逗号分割容器
+            if (window.commaSplitStabilizeTimer) {
+                clearTimeout(window.commaSplitStabilizeTimer);
+                window.commaSplitStabilizeTimer = null;
+            }
 
             updateStats();
         }
@@ -1893,34 +1897,51 @@ def POSTSOLVE(line):
                 let segmentEl = existingSegments[index];
 
                 if (!segmentEl) {
-                    // 创建新的分割句子元素，立即标记为稳定
+                    // 创建新的分割句子元素，初始标记为更新中状态
                     segmentEl = document.createElement('div');
-                    segmentEl.className = 'comma-split-sentence stable';
+                    segmentEl.className = 'comma-split-sentence updating';
                     segmentEl.setAttribute('data-segment-text', segment);
+                    segmentEl.setAttribute('data-last-update', Date.now().toString());
                     segmentEl.textContent = segment;
                     splitContainer.appendChild(segmentEl);
 
-                    // 立即为新创建的逗号分割句子添加翻译属性
-                    addTranslateAttributes(segmentEl);
+                    // 为更新中的逗号分割句子添加防翻译属性
+                    addNoTranslateAttributes(segmentEl);
 
-                    console.log(`逗号句子 ${index} 立即固定:`, segment);
+                    console.log(`逗号句子 ${index} 创建为更新状态:`, segment);
                 } else {
                     // 检查内容是否真的发生了变化
                     const currentText = segmentEl.getAttribute('data-segment-text') || segmentEl.textContent;
                     if (currentText !== segment) {
-                        // 内容发生变化，直接更新并保持稳定状态
-                        console.log(`逗号句子 ${index} 内容变化，立即更新:`, currentText, '->', segment);
+                        // 内容发生变化，重新标记为更新中状态
+                        console.log(`逗号句子 ${index} 内容变化，标记为更新中:`, currentText, '->', segment);
+                        segmentEl.className = 'comma-split-sentence updating';
                         segmentEl.setAttribute('data-segment-text', segment);
+                        segmentEl.setAttribute('data-last-update', Date.now().toString());
                         segmentEl.textContent = segment;
 
-                        // 确保保持稳定状态和翻译属性
-                        if (!segmentEl.classList.contains('stable')) {
-                            segmentEl.classList.remove('updating');
-                            segmentEl.classList.add('stable');
-                            addTranslateAttributes(segmentEl);
+                        // 重新添加防翻译属性
+                        addNoTranslateAttributes(segmentEl);
+                    } else {
+                        // 内容相同，检查是否需要从更新状态转为稳定状态
+                        if (segmentEl.classList.contains('updating')) {
+                            const lastUpdateTime = segmentEl.getAttribute('data-last-update') || '0';
+                            const currentTime = Date.now();
+                            const timeSinceUpdate = currentTime - parseInt(lastUpdateTime);
+
+                            // 如果内容在一定时间内没有变化，标记为稳定
+                            if (timeSinceUpdate >= 500) { // 500毫秒稳定期
+                                segmentEl.classList.remove('updating');
+                                segmentEl.classList.add('stable');
+
+                                // 移除防翻译属性并添加翻译属性
+                                removeNoTranslateAttributes(segmentEl);
+                                addTranslateAttributes(segmentEl);
+
+                                console.log(`逗号句子 ${index} 已稳定:`, segment);
+                            }
                         }
                     }
-                    // 如果内容相同，保持当前状态不变（不刷新DOM）
                 }
             });
 
@@ -1931,6 +1952,9 @@ def POSTSOLVE(line):
                     extraEl.parentNode.removeChild(extraEl);
                 }
             }
+
+            // 启动稳定化检查定时器
+            startCommaSplitStabilizeTimer();
         }
 
         // 清除逗号分割显示
@@ -1943,7 +1967,49 @@ def POSTSOLVE(line):
             commaSplitSentences = [];
         }
 
-        // 注意：逗号分割句子现在采用立即固定机制，不再需要定时器稳定化
+        // 启动逗号分割稳定化定时器
+        function startCommaSplitStabilizeTimer() {
+            // 清除之前的定时器
+            if (window.commaSplitStabilizeTimer) {
+                clearTimeout(window.commaSplitStabilizeTimer);
+            }
+
+            // 设置新的定时器，300毫秒后检查稳定化
+            window.commaSplitStabilizeTimer = setTimeout(() => {
+                stabilizeCommaSplitSentences();
+                // 如果还有更新中的句子，继续检查
+                const splitContainer = document.getElementById('comma-split-container-for-incomplete');
+                if (splitContainer && splitContainer.querySelectorAll('.comma-split-sentence.updating').length > 0) {
+                    startCommaSplitStabilizeTimer();
+                }
+            }, 300);
+        }
+
+        // 将更新中的逗号分割句子标记为稳定
+        function stabilizeCommaSplitSentences() {
+            const splitContainer = document.getElementById('comma-split-container-for-incomplete');
+            if (splitContainer) {
+                const updatingSegments = splitContainer.querySelectorAll('.comma-split-sentence.updating');
+                updatingSegments.forEach((segment, index) => {
+                    // 检查这个句子是否在一定时间内没有变化
+                    const lastUpdateTime = segment.getAttribute('data-last-update') || '0';
+                    const currentTime = Date.now();
+                    const timeSinceUpdate = currentTime - parseInt(lastUpdateTime);
+
+                    // 如果超过500毫秒没有更新，标记为稳定
+                    if (timeSinceUpdate >= 500) {
+                        segment.classList.remove('updating');
+                        segment.classList.add('stable');
+
+                        // 移除防翻译属性并添加翻译属性
+                        removeNoTranslateAttributes(segment);
+                        addTranslateAttributes(segment);
+
+                        console.log(`逗号句子 ${index} 已稳定:`, segment.textContent);
+                    }
+                });
+            }
+        }
 
         // 为完成的句子添加逗号分割显示
         function addCommaSplitToCompletedSentence(sentenceEl, segments) {
